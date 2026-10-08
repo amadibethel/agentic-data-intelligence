@@ -1,0 +1,1 @@
+Add screenshots from the actual running system: 01-rag-interface.png, 02-rag-retrieval-evidence.png, 03-n8n-workflow.png, 04-agent-output.png, 05-conflict-detection.png. Do not present mock screenshots as evidence of a live deployment.

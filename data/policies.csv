@@ -1,0 +1,7 @@
+policy_id,product_id,policy_type,requirement,sla,support_level
+POL001,P001,Support,Business customers,4 hours,Priority
+POL002,P002,Support,All customers,8 hours,Standard
+POL003,P003,Support,Enterprise customers,4 hours,Priority
+POL004,P004,Support,All customers,8 hours,Standard
+POL005,P001,Deployment,Cloud deployment required,24 hours,Engineering
+POL006,P002,Deployment,Cloud deployment required,48 hours,Engineering

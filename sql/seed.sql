@@ -1,0 +1,1 @@
+-- Embeddings must be generated with your configured model. Run `python -m rag.ingestion` after schema.sql.

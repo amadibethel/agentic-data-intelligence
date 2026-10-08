@@ -1,0 +1,5 @@
+product_id,product_name,category,description,integrations,deployment,availability
+P001,PayBot,FinTech,AI payment assistant,Paystack|Supabase,Cloud,Available
+P002,AgenticHR,Recruitment,AI recruitment automation platform,Google Workspace|Slack,Cloud,Available
+P003,Smart Document Q&A,Knowledge,Document intelligence assistant,Supabase|OpenAI,Cloud,Available
+P004,QuickServe,Commerce,Digital ordering and payment platform,Paystack|WhatsApp,Cloud,Available

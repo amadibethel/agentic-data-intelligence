@@ -1,0 +1,58 @@
+[
+  {
+    "product_id": "P001",
+    "product_name": "PayBot",
+    "architecture": "LLM + API orchestration",
+    "authentication": "OAuth/API keys",
+    "integrations": [
+      "Paystack",
+      "Supabase"
+    ],
+    "api_support": true,
+    "deployment": [
+      "Cloud"
+    ]
+  },
+  {
+    "product_id": "P002",
+    "product_name": "AgenticHR",
+    "architecture": "Agentic workflow orchestration",
+    "authentication": "OAuth",
+    "integrations": [
+      "Google Workspace",
+      "Slack"
+    ],
+    "api_support": true,
+    "deployment": [
+      "Cloud"
+    ]
+  },
+  {
+    "product_id": "P003",
+    "product_name": "Smart Document Q&A",
+    "architecture": "RAG + semantic retrieval",
+    "authentication": "API keys",
+    "integrations": [
+      "Supabase",
+      "OpenAI"
+    ],
+    "api_support": true,
+    "deployment": [
+      "Cloud"
+    ]
+  },
+  {
+    "product_id": "P004",
+    "product_name": "QuickServe",
+    "architecture": "Web application + payment API",
+    "authentication": "API keys",
+    "integrations": [
+      "Paystack",
+      "WhatsApp"
+    ],
+    "api_support": true,
+    "deployment": [
+      "Cloud"
+    ]
+  }
+]
