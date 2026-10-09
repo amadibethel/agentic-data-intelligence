@@ -1,15 +1,27 @@
 import re
 
+
 def normalize_email(email):
-    if not email: return None
+    if not email:
+        return None
     return email.strip().lower() or None
 
+
 def is_valid_email(email):
-    return bool(email and re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email.strip()))
+    return bool(
+        email
+        and re.fullmatch(
+            r"[^@\s]+@[^@\s]+\.[^@\s]+",
+            email.strip(),
+        )
+    )
+
 
 def normalize_name(name):
-    if not name: return None
+    if not name:
+        return None
     return " ".join(name.strip().split()).title() or None
+
 
 def normalize_attendee(record):
     r = dict(record)

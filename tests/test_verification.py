@@ -9,6 +9,6 @@ class Tests(unittest.TestCase):
         r=verify_attendee({"full_name":"Michael","email":"m@example.org","company":"Example","role":"CTO"},{"contradictions":["Role conflict"]})
         self.assertEqual(r["status"],"CONFLICT")
     def test_unverified(self):
-        r=verify_attendee({"full_name":"A Person","email":"bad"},{"})
+        r = verify_attendee({"full_name": "A Person", "email": "bad"}, {})
         self.assertEqual(r["status"],"UNVERIFIED")
 if __name__ == "__main__": unittest.main()
