@@ -8,7 +8,7 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        0,
+        240,
         300
       ]
     },
@@ -37,8 +37,8 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.1,
       "position": [
-        240,
-        300
+        460,
+        180
       ]
     },
     {
@@ -53,49 +53,35 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        480,
-        300
+        460,
+        420
       ]
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Adapt this mapping to the selected Calendar/Gmail node output schemas.\\nreturn [{json:{source_items:$input.all().map(i=>i.json),note:'Insert structured extraction and merge Gmail data here.'}}];"
-      },
-      "id": "map",
-      "name": "Map Source Payloads",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        720,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "// Expected input after extraction: attendee records with full_name/email/company/role.\\nfunction email(v){return v?String(v).trim().toLowerCase():null;}\\nfunction name(v){return v?String(v).trim().replace(/\\\\s+/g,' ').replace(/\\\\b\\\\w/g,c=>c.toUpperCase()):null;}\\nreturn $input.all().map(i=>({json:{...i.json,full_name:name(i.json.full_name||i.json.name),email:email(i.json.email),sources:i.json.sources||[],evidence:i.json.evidence||[]}}));"
+        "jsCode": "\nfunction clean(v) {\n  return v == null || v === '' ? null : String(v).trim().replace(/\\s+/g, ' ');\n}\nfunction email(v) {\n  return clean(v)?.toLowerCase() || null;\n}\nfunction name(v) {\n  const s = clean(v);\n  return s ? s.replace(/\\b\\w/g, c => c.toUpperCase()) : null;\n}\nreturn $input.all().map(item => {\n  const r = item.json;\n  return {json: {\n    ...r,\n    full_name: name(r.full_name || r.name),\n    email: email(r.email),\n    company: clean(r.company),\n    role: clean(r.role),\n    sources: Array.isArray(r.sources) ? r.sources : [],\n    evidence: Array.isArray(r.evidence) ? r.evidence : [],\n    verification_evidence: r.verification_evidence || {},\n    issues: Array.isArray(r.issues) ? r.issues : []\n  }};\n});\n"
       },
       "id": "normalize",
       "name": "Normalize Attendee Records",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1120,
         300
       ]
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const byEmail=new Map(), noEmail=[]; let duplicateCount=0; for(const item of $input.all()){const r=item.json,e=r.email;if(!e){noEmail.push(r);continue;}if(!byEmail.has(e)){byEmail.set(e,r);continue;}duplicateCount++;const t=byEmail.get(e);t.sources=[...new Set([...(t.sources||[]),...(r.sources||[])])];t.evidence=[...new Set([...(t.evidence||[]),...(r.evidence||[])])];for(const k of ['full_name','company','role']){if(t[k]&&r[k]&&t[k]!==r[k])t.issues=[...(t.issues||[]),`Conflicting ${k}: ${t[k]} vs ${r[k]}`];else if(!t[k]&&r[k])t[k]=r[k];}}return [...byEmail.values(),...noEmail].map(r=>({json:{...r,duplicate_count:duplicateCount}}));"
+        "jsCode": "\nconst byEmail = new Map();\nconst noEmail = [];\nlet duplicateCount = 0;\n\nfor (const item of $input.all()) {\n  const r = item.json;\n  const email = r.email;\n\n  if (!email) {\n    noEmail.push(r);\n    continue;\n  }\n\n  if (!byEmail.has(email)) {\n    byEmail.set(email, {...r});\n    continue;\n  }\n\n  duplicateCount++;\n  const target = byEmail.get(email);\n\n  for (const key of ['sources', 'evidence']) {\n    target[key] = [...new Set([\n      ...(target[key] || []), ...(r[key] || [])\n    ])];\n  }\n\n  target.issues = target.issues || [];\n  for (const key of ['full_name', 'company', 'role']) {\n    if (target[key] && r[key] && target[key] !== r[key]) {\n      target.issues.push(\n        `Conflicting ${key}: ${target[key]} vs ${r[key]}`\n      );\n    } else if (!target[key] && r[key]) {\n      target[key] = r[key];\n    }\n  }\n  target.issues = [...new Set(target.issues)];\n}\n\nreturn [...byEmail.values(), ...noEmail].map(r => ({\n  json: {...r, duplicate_count: duplicateCount}\n}));\n"
       },
       "id": "dedupe",
       "name": "Deduplicate by Email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1340,
         300
       ]
     },
@@ -115,14 +101,73 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const r=$json,ev=r.verification_evidence||{};const valid=!!r.email&&/^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$/.test(r.email);const identity=!!ev.identity_supported,company=!!ev.company_supported,role=!!ev.role_supported,external=!!ev.external_source_found,conflicts=ev.contradictions||r.issues||[];let score=(valid?15:0)+(identity?20:0)+(company?25:0)+(role?25:0)+(external?10:0)+(conflicts.length?0:5);let status=conflicts.length?'CONFLICT':(score>=90&&identity&&company?'VERIFIED':(score>=50?'PARTIALLY_VERIFIED':'UNVERIFIED'));return {json:{...r,email_valid:valid,identity_verified:identity,company_verified:company,role_verified:role,confidence_score:score,status,issues:[...(r.issues||[]),...(!external?['External evidence not mapped/available']:[])]}};"
+        "jsCode": "\nconst r = $json;\nconst ev = r.verification_evidence || {};\nconst valid = !!r.email &&\n  /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(r.email);\n\nconst identity = !!ev.identity_supported;\nconst company = !!ev.company_supported;\nconst role = !!ev.role_supported;\nconst external = !!ev.external_source_found;\n\nconst contradictions = [\n  ...(Array.isArray(ev.contradictions) ? ev.contradictions : []),\n  ...(Array.isArray(r.issues) ? r.issues.filter(\n    x => String(x).startsWith('Conflicting ')\n  ) : [])\n];\nconst uniqueContradictions = [...new Set(contradictions)];\n\nconst score =\n  (valid ? 15 : 0) +\n  (identity ? 20 : 0) +\n  (company ? 25 : 0) +\n  (role ? 25 : 0) +\n  (external ? 10 : 0) +\n  (uniqueContradictions.length ? 0 : 5);\n\nconst status = uniqueContradictions.length ? 'CONFLICT' :\n  (score >= 90 && identity && company ? 'VERIFIED' :\n  (score >= 50 ? 'PARTIALLY_VERIFIED' : 'UNVERIFIED'));\n\nconst issues = [...(Array.isArray(r.issues) ? r.issues : []),\n  ...uniqueContradictions];\n\nif (!valid) issues.push('Email missing or invalid');\n\nconst missing = ['full_name', 'email', 'company', 'role']\n  .filter(k => !r[k]);\nif (missing.length) issues.push('Missing fields: ' + missing.join(', '));\nif (!external) issues.push('No external evidence found');\n\nreturn {json: {\n  ...r,\n  email_valid: valid,\n  identity_verified: identity,\n  company_verified: company,\n  role_verified: role,\n  external_source_found: external,\n  confidence_score: score,\n  status,\n  sources: [...new Set([\n    ...(r.sources || []), ...(ev.sources || [])\n  ])],\n  issues: [...new Set(issues)]\n}};\n"
       },
       "id": "verify",
       "name": "Deterministic Verification (Map Evidence)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst out = [];\n\nfunction addPerson(person, event) {\n  if (!person || typeof person !== 'object') return;\n  const email = String(person.email || '').trim().toLowerCase();\n  if (!email) return;\n\n  out.push({json: {\n    full_name: person.displayName || person.name || null,\n    email,\n    company: person.company || null,\n    role: person.role || null,\n    meeting_title: event.summary || event.title || null,\n    sources: ['Calendar'],\n    evidence: [],\n    verification_evidence: {}\n  }});\n}\n\nfor (const item of $input.all()) {\n  const event = item.json;\n  for (const person of (Array.isArray(event.attendees) ? event.attendees : [])) {\n    addPerson(person, event);\n  }\n  if (event.organizer) addPerson(event.organizer, event);\n}\nreturn out;\n"
+      },
+      "id": "76cb9ffc-14a4-4017-8277-c968cf8e9192",
+      "name": "Extract Calendar Attendees",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst out = [];\n\nfunction extract(value) {\n  const found = [];\n  function walk(v) {\n    if (!v) return;\n    if (Array.isArray(v)) {\n      for (const x of v) walk(x);\n      return;\n    }\n    if (typeof v === 'object') {\n      const address = v.email || v.address;\n      if (address && String(address).includes('@')) {\n        found.push({\n          email: String(address).trim().toLowerCase(),\n          name: v.name || v.displayName || v.personal || null\n        });\n      } else {\n        for (const x of Object.values(v)) walk(x);\n      }\n      return;\n    }\n    if (typeof v === 'string') {\n      const re = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/ig;\n      for (const match of v.matchAll(re)) {\n        const email = match[0].toLowerCase();\n        const prefix = v.slice(0, match.index);\n        const name = prefix.replace(/[<(\"'\\s,;:]+$/g, '').trim() || null;\n        found.push({email, name});\n      }\n    }\n  }\n  walk(value);\n  const seen = new Set();\n  return found.filter(p => {\n    if (seen.has(p.email)) return false;\n    seen.add(p.email);\n    return true;\n  });\n}\n\nfor (const item of $input.all()) {\n  const message = item.json;\n  const fields = [\n    message.from, message.sender, message.to,\n    message.cc, message.bcc,\n    message.headers?.From, message.headers?.To,\n    message.headers?.Cc\n  ];\n\n  for (const field of fields) {\n    for (const person of extract(field)) {\n      out.push({json: {\n        full_name: person.name,\n        email: person.email,\n        company: null,\n        role: null,\n        meeting_title: message.subject || null,\n        sources: ['Gmail'],\n        evidence: [],\n        verification_evidence: {}\n      }});\n    }\n  }\n}\nreturn out;\n"
+      },
+      "id": "cea94648-72ea-42c9-b827-3d821d9ad19a",
+      "name": "Extract Gmail Contacts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "numberInputs": 2,
+        "options": {}
+      },
+      "id": "1c656864-0fb0-4ace-a801-203b923b0e4d",
+      "name": "Merge Calendar and Gmail",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toCsv",
+        "options": {
+          "fileName": "attendee-verification.csv"
+        }
+      },
+      "id": "ecd51720-1ce0-490d-9bae-431702a48fb3",
+      "name": "Export Attendees to CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
         300
       ]
     }
@@ -135,6 +180,11 @@
             "node": "Google Calendar - Get Events",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Gmail - Get Messages",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -143,7 +193,7 @@
       "main": [
         [
           {
-            "node": "Gmail - Get Messages",
+            "node": "Extract Calendar Attendees",
             "type": "main",
             "index": 0
           }
@@ -154,14 +204,36 @@
       "main": [
         [
           {
-            "node": "Map Source Payloads",
+            "node": "Extract Gmail Contacts",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Map Source Payloads": {
+    "Extract Calendar Attendees": {
+      "main": [
+        [
+          {
+            "node": "Merge Calendar and Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Gmail Contacts": {
+      "main": [
+        [
+          {
+            "node": "Merge Calendar and Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Calendar and Gmail": {
       "main": [
         [
           {
@@ -188,6 +260,17 @@
         [
           {
             "node": "Deterministic Verification (Map Evidence)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deterministic Verification (Map Evidence)": {
+      "main": [
+        [
+          {
+            "node": "Export Attendees to CSV",
             "type": "main",
             "index": 0
           }
