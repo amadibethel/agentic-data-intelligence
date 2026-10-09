@@ -1,0 +1,207 @@
+{
+  "name": "Meeting Intelligence & Attendee Verification (Template)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Template only. Select credentials, configure provider-specific mappings, and test with synthetic data."
+      },
+      "id": "note",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "options": {}
+      },
+      "id": "calendar",
+      "name": "Google Calendar - Get Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 20,
+        "options": {}
+      },
+      "id": "gmail",
+      "name": "Gmail - Get Messages",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Adapt this mapping to the selected Calendar/Gmail node output schemas.\\nreturn [{json:{source_items:$input.all().map(i=>i.json),note:'Insert structured extraction and merge Gmail data here.'}}];"
+      },
+      "id": "map",
+      "name": "Map Source Payloads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Expected input after extraction: attendee records with full_name/email/company/role.\\nfunction email(v){return v?String(v).trim().toLowerCase():null;}\\nfunction name(v){return v?String(v).trim().replace(/\\\\s+/g,' ').replace(/\\\\b\\\\w/g,c=>c.toUpperCase()):null;}\\nreturn $input.all().map(i=>({json:{...i.json,full_name:name(i.json.full_name||i.json.name),email:email(i.json.email),sources:i.json.sources||[],evidence:i.json.evidence||[]}}));"
+      },
+      "id": "normalize",
+      "name": "Normalize Attendee Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const byEmail=new Map(), noEmail=[]; let duplicateCount=0; for(const item of $input.all()){const r=item.json,e=r.email;if(!e){noEmail.push(r);continue;}if(!byEmail.has(e)){byEmail.set(e,r);continue;}duplicateCount++;const t=byEmail.get(e);t.sources=[...new Set([...(t.sources||[]),...(r.sources||[])])];t.evidence=[...new Set([...(t.evidence||[]),...(r.evidence||[])])];for(const k of ['full_name','company','role']){if(t[k]&&r[k]&&t[k]!==r[k])t.issues=[...(t.issues||[]),`Conflicting ${k}: ${t[k]} vs ${r[k]}`];else if(!t[k]&&r[k])t[k]=r[k];}}return [...byEmail.values(),...noEmail].map(r=>({json:{...r,duplicate_count:duplicateCount}}));"
+      },
+      "id": "dedupe",
+      "name": "Deduplicate by Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Add an HTTP Request node for Tavily or another search provider. Map search results to verification_evidence before the next node."
+      },
+      "id": "webnote",
+      "name": "Web Search Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1420,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const r=$json,ev=r.verification_evidence||{};const valid=!!r.email&&/^[^\\\\s@]+@[^\\\\s@]+\\\\.[^\\\\s@]+$/.test(r.email);const identity=!!ev.identity_supported,company=!!ev.company_supported,role=!!ev.role_supported,external=!!ev.external_source_found,conflicts=ev.contradictions||r.issues||[];let score=(valid?15:0)+(identity?20:0)+(company?25:0)+(role?25:0)+(external?10:0)+(conflicts.length?0:5);let status=conflicts.length?'CONFLICT':(score>=90&&identity&&company?'VERIFIED':(score>=50?'PARTIALLY_VERIFIED':'UNVERIFIED'));return {json:{...r,email_valid:valid,identity_verified:identity,company_verified:company,role_verified:role,confidence_score:score,status,issues:[...(r.issues||[]),...(!external?['External evidence not mapped/available']:[])]}};"
+      },
+      "id": "verify",
+      "name": "Deterministic Verification (Map Evidence)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar - Get Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar - Get Events": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Get Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Get Messages": {
+      "main": [
+        [
+          {
+            "node": "Map Source Payloads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Source Payloads": {
+      "main": [
+        [
+          {
+            "node": "Normalize Attendee Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Attendee Records": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate by Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate by Email": {
+      "main": [
+        [
+          {
+            "node": "Deterministic Verification (Map Evidence)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "template-1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
